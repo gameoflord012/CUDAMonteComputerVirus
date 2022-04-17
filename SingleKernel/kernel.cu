@@ -37,16 +37,17 @@ using namespace std;
 
 const size_t DEFAULT_TESTS_COUNT = 100;
 const unsigned int DEFAULT_THREADS_COUNT_PER_BLOCK = 128;
-const unsigned int DEFAULT_BLOCKS_COUNT_PER_numSMs = 32;
 
 const unsigned int INITIAL_INFECTED_COUNT = 1;
 
 __device__ float d_probs[20];
 
 __global__
-void monte_simp(curandState_t* states, size_t* result, size_t n)
+void monte_simp(size_t* result, size_t n)
 {
     int threadId = blockIdx.x * blockDim.x + threadIdx.x;
+    curandState_t s;
+    curand_init(clock64(), threadId, 0 ,&s);
 
     for (size_t i = threadId; i < n; i += gridDim.x * blockDim.x)
     {
@@ -59,20 +60,13 @@ void monte_simp(curandState_t* states, size_t* result, size_t n)
             int newCasesCount = 0;
             for (int uninfectedCount = 20 - infectedCount; uninfectedCount--;)
             {
-                float prob = curand_uniform(&states[threadId]);
+                float prob = curand_uniform(&s);
                 newCasesCount += prob < d_probs[infectedCount];
             }
 
             infectedCount += newCasesCount;
         } while ((infectedCount -= 5) > 0);
     }
-}
-
-__global__
-void curand_init_kernel(curandState_t* states, int seed)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    curand_init(seed, i, 0, &states[i]);
 }
 
 size_t get_unsigned_num(string msg, size_t defaultValue)
@@ -89,15 +83,18 @@ size_t get_unsigned_num(string msg, size_t defaultValue)
 
 int main()
 {
-    // Get inputs
-    const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
-    const size_t blocks_count_per_numSMs = get_unsigned_num("blocks_count_per_numSMs: ", DEFAULT_BLOCKS_COUNT_PER_numSMs);
-    const size_t threads_count_per_block = get_unsigned_num("threads_per_block: ", DEFAULT_THREADS_COUNT_PER_BLOCK);
-
     // Get numSMs and device
     int numSMs, device;
     CUDA_CALL(cudaGetDevice(&device));
     CUDA_CALL(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, device));
+    
+    // Get inputs
+    const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
+    const size_t threads_count_per_block = get_unsigned_num("threads_per_block: ", DEFAULT_THREADS_COUNT_PER_BLOCK);
+
+    const unsigned int default_blocks_count = (tests_count + threads_count_per_block - 1) / threads_count_per_block;
+    const size_t blocks_count_per_numSMs = get_unsigned_num("blocks_count_per_numSMs: ", (default_blocks_count + numSMs - 1) / numSMs);
+
     const unsigned int threads_count = numSMs * blocks_count_per_numSMs * threads_count_per_block;
 
     // Print datas
@@ -109,18 +106,6 @@ int main()
     cout << "   threads_count_per_block = " << threads_count_per_block << endl;
     cout << "   threads_count = " << threads_count << endl;
     cout << endl;
-
-    // Init kernel
-    srand(time(NULL));
-
-    curandState_t* d_states;
-    CUDA_CALL(cudaMalloc((void**)&d_states, threads_count * sizeof(curandState)));
-
-    clock_t tStart = clock();
-    cout << "Running kernel \"init_kernel_states()\"..." << endl;
-    curand_init_kernel << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_states, rand());
-    CUDA_CALL(cudaThreadSynchronize());
-    printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC);
 
     // Initialize d_A
     size_t* d_A;
@@ -140,8 +125,8 @@ int main()
 
     // Run simulation kernel
     cout << "Running kernel \"monte_simp()\"..." << endl;
-    tStart = clock();
-    monte_simp << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_states, d_A, tests_count);
+    clock_t tStart = clock();
+    monte_simp << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_A, tests_count);
     CUDA_CALL(cudaThreadSynchronize());
     printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC);
 
@@ -154,7 +139,6 @@ int main()
     printf("    A) %llu / %llu = %.2f\n", h_A, tests_count, (float)(h_A) / tests_count);
 
     // Free memory
-    cudaFree(d_states);
     cudaFree(d_A);
 
     // Check for any errors
