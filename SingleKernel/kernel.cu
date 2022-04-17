@@ -2,6 +2,8 @@
 #include <random>
 #include <stdlib.h>
 #include <time.h>
+#include <sstream>
+#include <chrono>
 
 //for __syncthreads()
 #include <device_functions.h>
@@ -33,9 +35,9 @@
 
 using namespace std;
 
-const size_t EXPECTED_TEST_COUNT = 100;
-const unsigned int THREADS_PER_BLOCK = 128;
-const unsigned int BLOCKS_COUNT_PER_numSMs = 32;
+const size_t DEFAULT_TESTS_COUNT = 100;
+const unsigned int DEFAULT_THREADS_COUNT_PER_BLOCK = 128;
+const unsigned int DEFAULT_BLOCKS_COUNT_PER_numSMs = 32;
 
 const unsigned int INITIAL_INFECTED_COUNT = 1;
 
@@ -73,20 +75,51 @@ void curand_init_kernel(curandState_t* states, int seed)
     curand_init(seed, i, 0, &states[i]);
 }
 
+size_t get_unsigned_num(string msg, size_t defaultValue)
+{
+    cout << msg;
+    string input;
+    getline(cin, input);
+    stringstream ss(input);
+    size_t result;
+    if (ss >> result)
+        return result;
+    return defaultValue;
+}
+
 int main()
 {
-    // Init kernel
-    srand(time(NULL));
+    // Get inputs
+    const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
+    const size_t blocks_count_per_numSMs = get_unsigned_num("blocks_count_per_numSMs: ", DEFAULT_BLOCKS_COUNT_PER_numSMs);
+    const size_t threads_count_per_block = get_unsigned_num("threads_per_block: ", DEFAULT_THREADS_COUNT_PER_BLOCK);
 
+    // Get numSMs and device
     int numSMs, device;
     CUDA_CALL(cudaGetDevice(&device));
     CUDA_CALL(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, device));
+    const unsigned int threads_count = numSMs * blocks_count_per_numSMs * threads_count_per_block;
 
-    int THREADS_COUNT = numSMs * BLOCKS_COUNT_PER_numSMs * THREADS_PER_BLOCK;
+    // Print datas
+    cout << endl;
+    cout << "Datas:" << endl;
+    cout << "   blocks_count_per_numSMs = " << blocks_count_per_numSMs << endl;
+    cout << "   threads_count_per_block = " << threads_count_per_block << endl;
+    cout << "   tests_count = " << tests_count << endl;
+    cout << "   threads_count = " << threads_count << endl;
+    cout << endl;
+
+    // Init kernel
+    srand(time(NULL));
+
     curandState_t* d_states;
-    CUDA_CALL(cudaMalloc((void**)&d_states, THREADS_COUNT * sizeof(curandState)));
+    CUDA_CALL(cudaMalloc((void**)&d_states, threads_count * sizeof(curandState)));
 
-    curand_init_kernel << <numSMs * BLOCKS_COUNT_PER_numSMs, THREADS_PER_BLOCK >> > (d_states, rand());
+    clock_t tStart = clock();
+    cout << "Start kernel \"init_kernel_states()\"" << endl;
+    curand_init_kernel << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_states, rand());
+    CUDA_CALL(cudaThreadSynchronize());
+    printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC);
 
     // Initialize d_A
     size_t* d_A;
@@ -105,15 +138,19 @@ int main()
     CUDA_CALL(cudaMemcpyToSymbol(d_probs, h_probs, 20 * sizeof(float)));
 
     // Run simulation kernel
-    monte_simp<<<numSMs * BLOCKS_COUNT_PER_numSMs, THREADS_PER_BLOCK>>>(d_states, d_A, EXPECTED_TEST_COUNT);
+    cout << "Start kernel \"monte_simp()\"..." << endl;
+    tStart = clock();
+    monte_simp << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_states, d_A, tests_count);
+    CUDA_CALL(cudaThreadSynchronize());
+    printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC);
 
+    
     // print result from device memory
     size_t h_A;
     CUDA_CALL(cudaMemcpy(&h_A, d_A, sizeof(size_t), cudaMemcpyDeviceToHost));
 
-    printf("Threads count: %d\n", THREADS_COUNT);
-    printf("%llu %llu\n", h_A, EXPECTED_TEST_COUNT);
-    printf("%.2f\n", (float)(h_A) / EXPECTED_TEST_COUNT);
+    cout << "Results: " << endl;
+    printf("    %llu / %llu = %.2f\n", h_A, tests_count, (float)(h_A) / tests_count);
 
     // Free memory
     cudaFree(d_states);

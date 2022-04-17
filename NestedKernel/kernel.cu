@@ -92,9 +92,9 @@ size_t get_unsigned_num(string msg, size_t defaultValue)
 int main()
 {
     // Get inputs
+    const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
     const size_t blocks_count_per_numSMs = get_unsigned_num("blocks_count_per_numSMs: ", DEFAULT_BLOCKS_COUNT_PER_numSMs);
     const size_t threads_count_per_block = get_unsigned_num("threads_per_block: ", DEFAULT_THREADS_COUNT_PER_BLOCK);
-    const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
     
     // Get numSMs and device
     int numSMs, device;
