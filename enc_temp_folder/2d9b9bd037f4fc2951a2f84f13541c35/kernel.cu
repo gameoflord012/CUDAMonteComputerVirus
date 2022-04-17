@@ -105,9 +105,9 @@ int main()
     // Print datas
     cout << endl;
     cout << "Datas:" << endl;
-    cout << "   tests_count = " << tests_count << endl;
     cout << "   blocks_count_per_numSMs = " << blocks_count_per_numSMs << endl;
     cout << "   threads_count_per_block = " << threads_count_per_block << endl;
+    cout << "   tests_count = " << tests_count << endl;
     cout << "   threads_count = " << threads_count << endl;
     cout << endl;
 
