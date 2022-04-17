@@ -103,9 +103,9 @@ int main()
     // Print datas
     cout << endl;
     cout << "Datas:" << endl;
+    cout << "   tests_count = " << tests_count << endl;
     cout << "   blocks_count_per_numSMs = " << blocks_count_per_numSMs << endl;
     cout << "   threads_count_per_block = " << threads_count_per_block << endl;
-    cout << "   tests_count = " << tests_count << endl;
     cout << "   threads_count = " << threads_count << endl;
     cout << endl;
 
@@ -116,7 +116,7 @@ int main()
     CUDA_CALL(cudaMalloc((void**)&d_states, threads_count * sizeof(curandState)));
 
     clock_t tStart = clock();
-    cout << "Start kernel \"init_kernel_states()\"" << endl;
+    cout << "Running kernel \"init_kernel_states()\"..." << endl;
     curand_init_kernel << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_states, rand());
     CUDA_CALL(cudaThreadSynchronize());
     printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC);
@@ -138,7 +138,7 @@ int main()
     CUDA_CALL(cudaMemcpyToSymbol(d_probs, h_probs, 20 * sizeof(float)));
 
     // Run simulation kernel
-    cout << "Start kernel \"monte_simp()\"..." << endl;
+    cout << "Running kernel \"monte_simp()\"..." << endl;
     tStart = clock();
     monte_simp << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_states, d_A, tests_count);
     CUDA_CALL(cudaThreadSynchronize());
@@ -150,7 +150,7 @@ int main()
     CUDA_CALL(cudaMemcpy(&h_A, d_A, sizeof(size_t), cudaMemcpyDeviceToHost));
 
     cout << "Results: " << endl;
-    printf("    %llu / %llu = %.2f\n", h_A, tests_count, (float)(h_A) / tests_count);
+    printf("    A) %llu / %llu = %.2f\n", h_A, tests_count, (float)(h_A) / tests_count);
 
     // Free memory
     cudaFree(d_states);
