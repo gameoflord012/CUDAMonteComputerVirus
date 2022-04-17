@@ -83,10 +83,31 @@ size_t get_unsigned_num(string msg, size_t defaultValue)
 
 int main()
 {
+    // Get devices infos
+    int nDevices;
+
+    cudaGetDeviceCount(&nDevices);
+    for (int i = 0; i < nDevices; i++) {
+        cudaDeviceProp prop;
+        cudaGetDeviceProperties(&prop, i);
+        printf("Device Number: %d\n", i);
+        printf("  Device name: %s\n", prop.name);
+        printf("  Memory Clock Rate (KHz): %d\n",
+            prop.memoryClockRate);
+        printf("  Memory Bus Width (bits): %d\n",
+            prop.memoryBusWidth);
+        printf("  Peak Memory Bandwidth (GB/s): %f\n\n",
+            2.0 * prop.memoryClockRate * (prop.memoryBusWidth / 8) / 1.0e6);
+    }
+
+    int device_idx;
+    cudaGetDevice(&device_idx);
+    device_idx = get_unsigned_num("device index: ", device_idx);
+
+    cudaSetDevice(device_idx);
     // Get numSMs and device
-    int numSMs, device;
-    CUDA_CALL(cudaGetDevice(&device));
-    CUDA_CALL(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, device));
+    int numSMs;
+    CUDA_CALL(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, device_idx));
     
     // Get inputs
     const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
@@ -100,6 +121,7 @@ int main()
     // Print datas
     cout << endl;
     cout << "Datas:" << endl;
+    cout << "   device_idx = " << device_idx << endl;
     cout << "   tests_count = " << tests_count << endl;
     cout << "   blocks_count_per_numSMs = " << blocks_count_per_numSMs << endl;
     cout << "   numSMs = " << numSMs << endl;
