@@ -34,9 +34,10 @@
 using namespace std;
 
 const size_t EXPECTED_TEST_COUNT = 100;
-const unsigned int INITIAL_INFECTED_COUNT = 1;
 const unsigned int THREADS_PER_BLOCK = 128;
 const unsigned int BLOCKS_COUNT_PER_numSMs = 32;
+
+const unsigned int INITIAL_INFECTED_COUNT = 1;
 
 __device__ float d_probs[20];
 
