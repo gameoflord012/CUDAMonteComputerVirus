@@ -35,7 +35,7 @@
 
 using namespace std;
 
-const size_t DEFAULT_TESTS_COUNT = 100;
+const size_t DEFAULT_TESTS_COUNT = 10;
 const unsigned int DEFAULT_THREADS_COUNT_PER_BLOCK = 128;
 const unsigned int DEFAULT_BLOCKS_COUNT_PER_numSMs = 32;
 
@@ -57,7 +57,7 @@ void monte_simp(curandState_t* states, unsigned int* counters, size_t* result, s
 
     for (size_t i = threadId; i < n; i += gridDim.x * blockDim.x)
     {
-        int infectedCount = INITIAL_INFECTED_COUNT;
+        int infectedCount = 1;
 
         do
         {
@@ -65,6 +65,8 @@ void monte_simp(curandState_t* states, unsigned int* counters, size_t* result, s
 
             counters[threadId] = 0;
             uniform_dis << <1, 20 >> > (states + threadId * 20, counters + threadId, d_probs[infectedCount]);
+            cudaDeviceSynchronize();
+
             infectedCount += counters[threadId];
         } while ((infectedCount -= 5) > 0);
     }
@@ -118,14 +120,14 @@ int main()
     curandState_t* d_states;
     CUDA_CALL(cudaMalloc((void**)&d_states, 20 * threads_count * sizeof(curandState)));
 
+    unsigned int* counters;
+    CUDA_CALL(cudaMalloc((void**)&counters, threads_count * sizeof(unsigned int)));
+
     clock_t tStart = clock();
     cout << "Running kernel \"init_kernel_states()\"..." << endl;
     init_kernel_states << <numSMs * blocks_count_per_numSMs * 20, threads_count_per_block >> > (d_states, rand());
     CUDA_CALL(cudaThreadSynchronize());
-    printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC);
-
-    unsigned int* counters;
-    CUDA_CALL(cudaMalloc((void**)&counters, threads_count * sizeof(unsigned int)));
+    printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC); 
 
     // Initialize d_A
     size_t* d_A;
