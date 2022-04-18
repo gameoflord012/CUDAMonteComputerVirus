@@ -1,10 +1,10 @@
-﻿#include <iostream>
+﻿/*#include <iostream>
 #include <random>
 #include <stdlib.h>
 #include <time.h>
 #include <sstream>
 #include <chrono>
-
+#include<windows.h>
 //for __syncthreads()
 #include <device_functions.h>
 
@@ -111,6 +111,7 @@ int main()
     
     // Get inputs
     const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
+    const size_t tests_count_2 = get_unsigned_num("tests_count_2: ", DEFAULT_TESTS_COUNT);
     const size_t threads_count_per_block = get_unsigned_num("threads_per_block: ", DEFAULT_THREADS_COUNT_PER_BLOCK);
 
     const unsigned int default_blocks_count = (tests_count + threads_count_per_block - 1) / threads_count_per_block;
@@ -123,6 +124,7 @@ int main()
     cout << "Datas:" << endl;
     cout << "   device_idx = " << device_idx << endl;
     cout << "   tests_count = " << tests_count << endl;
+    cout << "   tests_count_2 = " << tests_count_2 << endl;
     cout << "   blocks_count_per_numSMs = " << blocks_count_per_numSMs << endl;
     cout << "   numSMs = " << numSMs << endl;
     cout << "   threads_count_per_block = " << threads_count_per_block << endl;
@@ -146,23 +148,31 @@ int main()
     CUDA_CALL(cudaMemcpyToSymbol(d_probs, h_probs, 20 * sizeof(float)));
 
     // Run simulation kernel
+    size_t h_A;
+    size_t h_A_sum = 0;
     cout << "Running kernel \"monte_simp()\"..." << endl;
     clock_t tStart = clock();
-    monte_simp << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_A, tests_count);
+    for (int i = 0; i < tests_count_2; i++)
+    {
+        monte_simp << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_A, tests_count);
+        CUDA_CALL(cudaMemcpy(&h_A, d_A, sizeof(size_t), cudaMemcpyDeviceToHost));
+        h_A_sum += h_A;
+        printf("  %llu / %llu / %d = %.2f ", h_A_sum, tests_count,i, (float)(h_A) / tests_count / (i+1));
+        printf("ETA: %.2fs\n", ((double)(clock() - tStart) / CLOCKS_PER_SEC) * (double)(tests_count_2/(i+1)));
+    }
     CUDA_CALL(cudaThreadSynchronize());
     printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC);
 
     
     // print result from device memory
-    size_t h_A;
-    CUDA_CALL(cudaMemcpy(&h_A, d_A, sizeof(size_t), cudaMemcpyDeviceToHost));
+    //CUDA_CALL(cudaMemcpy(&h_A, d_A, sizeof(size_t), cudaMemcpyDeviceToHost));
 
     cout << "Results: " << endl;
-    printf("    A) %llu / %llu = %.2f\n", h_A, tests_count, (float)(h_A) / tests_count);
+    printf("    A) %llu / %llu = %.2f\n", h_A_sum, tests_count * tests_count_2, (float)(h_A) / tests_count / tests_count_2);
 
     // Free memory
     cudaFree(d_A);
 
     // Check for any errors
     cudaCheckErrors("Don't know wtf");
-}
+}*/
