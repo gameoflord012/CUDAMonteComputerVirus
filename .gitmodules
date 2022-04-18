@@ -1,0 +1,3 @@
+[submodule "libs/hemi"]
+	path = libs/hemi
+	url = https://github.com/harrism/hemi.git
