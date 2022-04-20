@@ -1,4 +1,4 @@
-﻿/*#include <iostream>
+﻿#include <iostream>
 #include <random>
 #include <stdlib.h>
 #include <time.h>
@@ -175,4 +175,4 @@ int main()
 
     // Check for any errors
     cudaCheckErrors("Don't know wtf");
-}*/
+}

@@ -8,6 +8,7 @@
 #include "hemi/hemi.h"
 #include "hemi/launch.h"
 #include "hemi/grid_stride_range.h"
+#include "hemi/execution_policy.h"
 
 //for __syncthreads()
 #include <device_functions.h>
@@ -71,6 +72,7 @@ int main()
     int nDevices;
 
     cudaGetDeviceCount(&nDevices);
+
     for (int i = 0; i < nDevices; i++) {
         cudaDeviceProp prop;
         cudaGetDeviceProperties(&prop, i);
@@ -90,14 +92,21 @@ int main()
 
     cudaSetDevice(device_idx);
 
-    // Get inputs
+    int numSMs;
+    checkCuda(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, device_idx));
+
     const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
+    const size_t threads_count_per_block = get_unsigned_num("threads_per_block: ", 0);
+    const size_t blocks_count_per_numSMs = get_unsigned_num("blocks_count_per_numSMs: ", 0);
 
     // Print datas
     cout << endl;
     cout << "Datas:" << endl;
     cout << "   device_idx = " << device_idx << endl;
     cout << "   tests_count = " << tests_count << endl;
+    cout << "   threads_count_per_block = " << (threads_count_per_block ? to_string(threads_count_per_block) : "Hemi decide") << endl;
+    cout << "   blocks_count_per_numSMs = " << (blocks_count_per_numSMs ? to_string(blocks_count_per_numSMs) : "Hemi decide") << endl;
+    cout << "   numSMs = " << numSMs << endl;
     cout << endl;
 
     // Initialize d_A
@@ -119,10 +128,15 @@ int main()
     // Run simulation kernel
     cout << "Running kernel \"monte_simp()\"..." << endl;
     clock_t tStart = clock();
+
+    hemi::ExecutionPolicy ep;
+    if (blocks_count_per_numSMs) ep.setGridSize(blocks_count_per_numSMs * numSMs);
+    if (threads_count_per_block) ep.setBlockSize(threads_count_per_block);
+
     hemi::cudaLaunch(monte_simp, d_A, tests_count);
+
     checkCuda(cudaThreadSynchronize());
     printf("Time taken: %.2fs\n\n", (double)(clock() - tStart) / CLOCKS_PER_SEC);
-
 
     // print result from device memory
     size_t h_A;
