@@ -36,18 +36,20 @@
 using namespace std;
 
 const size_t DEFAULT_TESTS_COUNT = 100;
-const unsigned int DEFAULT_THREADS_COUNT_PER_BLOCK = 128;
-
+const unsigned int DEFAULT_BLOCK_SIZE = 128;
 const unsigned int INITIAL_INFECTED_COUNT = 1;
 
-__device__ float d_probs[20];
+__constant__ float d_probs[20];
 
 __global__
 void monte_simp(size_t* result, size_t n)
 {
-    int threadId = blockIdx.x * blockDim.x + threadIdx.x;
+    const int threadId = blockIdx.x * blockDim.x + threadIdx.x;
     curandState_t s;
-    curand_init(clock64(), threadId, 0 ,&s);
+    curand_init(clock64(), threadId, 0, &s);
+
+    extern __shared__ size_t counters[];
+    counters[threadIdx.x] = 0;
 
     for (size_t i = threadId; i < n; i += gridDim.x * blockDim.x)
     {
@@ -55,7 +57,7 @@ void monte_simp(size_t* result, size_t n)
 
         do
         {
-            atomicAdd(result, (size_t)1);
+            counters[threadIdx.x]++;
 
             int newCasesCount = 0;
             for (int uninfectedCount = 20 - infectedCount; uninfectedCount--;)
@@ -66,6 +68,15 @@ void monte_simp(size_t* result, size_t n)
 
             infectedCount += newCasesCount;
         } while ((infectedCount -= 5) > 0);
+    }
+
+    __syncthreads();
+    if (threadIdx.x == 0)
+    {
+        for (int i = 0; i < blockDim.x; i++)
+        {
+            atomicAdd(result, counters[i]);
+        }
     }
 }
 
@@ -90,7 +101,7 @@ int main()
     for (int i = 0; i < nDevices; i++) {
         cudaDeviceProp prop;
         cudaGetDeviceProperties(&prop, i);
-        printf("Device Number: %d\n", i);
+        printf("Device Index: %d\n", i);
         printf("  Device name: %s\n", prop.name);
         printf("  Memory Clock Rate (KHz): %d\n",
             prop.memoryClockRate);
@@ -111,13 +122,12 @@ int main()
     
     // Get inputs
     const size_t tests_count = get_unsigned_num("tests_count: ", DEFAULT_TESTS_COUNT);
-    const size_t tests_count_2 = get_unsigned_num("tests_count_2: ", DEFAULT_TESTS_COUNT);
-    const size_t threads_count_per_block = get_unsigned_num("threads_per_block: ", DEFAULT_THREADS_COUNT_PER_BLOCK);
+    const size_t tests_count_2 = get_unsigned_num("tests_count_2: ", 1);
 
-    const unsigned int default_blocks_count = (tests_count + threads_count_per_block - 1) / threads_count_per_block;
-    const size_t blocks_count_per_numSMs = get_unsigned_num("blocks_count_per_numSMs: ", (default_blocks_count + numSMs - 1) / numSMs);
-
-    const unsigned int threads_count = numSMs * blocks_count_per_numSMs * threads_count_per_block;
+    const unsigned int block_size = get_unsigned_num("block_size: ", DEFAULT_BLOCK_SIZE);
+    const unsigned int default_grid_size = (tests_count + block_size - 1) / block_size;
+    const unsigned int grid_size_per_numSMs = get_unsigned_num("grid_size_per_numSMs: ", (default_grid_size + numSMs - 1) / numSMs);
+    const unsigned int threads_count = numSMs * grid_size_per_numSMs * block_size;
 
     // Print datas
     cout << endl;
@@ -125,9 +135,9 @@ int main()
     cout << "   device_idx = " << device_idx << endl;
     cout << "   tests_count = " << tests_count << endl;
     cout << "   tests_count_2 = " << tests_count_2 << endl;
-    cout << "   blocks_count_per_numSMs = " << blocks_count_per_numSMs << endl;
+    cout << "   grid_size_per_numSMs = " << grid_size_per_numSMs << endl;
     cout << "   numSMs = " << numSMs << endl;
-    cout << "   threads_count_per_block = " << threads_count_per_block << endl;
+    cout << "   block_size = " << block_size << endl;
     cout << "   threads_count = " << threads_count << endl;
     cout << endl;
 
@@ -154,7 +164,7 @@ int main()
     clock_t tStart = clock();
     for (int i = 0; i < tests_count_2; i++)
     {
-        monte_simp << <numSMs * blocks_count_per_numSMs, threads_count_per_block >> > (d_A, tests_count);
+        monte_simp << <numSMs * grid_size_per_numSMs, block_size, block_size * sizeof(size_t)>> > (d_A, tests_count);
         CUDA_CALL(cudaMemcpy(&h_A, d_A, sizeof(size_t), cudaMemcpyDeviceToHost));
         h_A_sum += h_A;
         printf("  %llu / %llu / %d = %.2f ", h_A_sum, tests_count,i, (float)(h_A) / tests_count / (i+1));
