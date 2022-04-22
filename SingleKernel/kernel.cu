@@ -98,7 +98,8 @@ int main()
     int nDevices;
 
     cudaGetDeviceCount(&nDevices);
-    for (int i = 0; i < nDevices; i++) {
+    for (int i = 0; i < nDevices; i++) 
+    {
         cudaDeviceProp prop;
         cudaGetDeviceProperties(&prop, i);
         printf("Device Index: %d\n", i);
@@ -164,7 +165,7 @@ int main()
     clock_t tStart = clock();
     for (int i = 0; i < tests_count_2; i++)
     {
-        monte_simp << <numSMs * grid_size_per_numSMs, block_size, block_size * sizeof(size_t)>> > (d_A, tests_count);
+        monte_simp<<<numSMs * grid_size_per_numSMs, block_size, block_size * sizeof(size_t)>>>(d_A, tests_count);
         CUDA_CALL(cudaMemcpy(&h_A, d_A, sizeof(size_t), cudaMemcpyDeviceToHost));
         h_A_sum += h_A;
         printf("  %llu / %llu / %d = %.2f ", h_A_sum, tests_count,i, (float)(h_A) / tests_count / (i+1));
