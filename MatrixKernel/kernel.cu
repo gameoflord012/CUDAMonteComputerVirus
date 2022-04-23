@@ -188,12 +188,12 @@ int main()
 				INIT_MATRIX,
 				matrixFunctor()
 				);
-			return result.ar[0];
+			return result.ar[1];
 		};
 
 		while (getResult(sz) > 0)
 		{
-			sz *= 2;
+			sz <<= 1;
 		}
 
 		uint64_t l = sz / 2 + 1, r = sz;
