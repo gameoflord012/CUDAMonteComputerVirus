@@ -42,14 +42,21 @@ struct randomGenerator : public thrust::unary_function<matrix, uint64_t>
 		matrix result;
 		for (int nInfect = 0; nInfect < COMPUTER_COUNT + 1; nInfect++)
 		{
+			double p = curand_uniform(&s);
+
 			result.ar[nInfect] = nInfect;
 
-			for (int nUninfect = COMPUTER_COUNT - nInfect; nUninfect--;)
+			int unInfected = COMPUTER_COUNT - nInfect, l = 0, r = unInfected;
+			while (l < r)
 			{
-				double p = curand_uniform(&s);
-				result.ar[nInfect] += p < d_probs[nInfect];
+				int m = l + r >> 1;
+				if (d_probsTable[unInfected][m] > p)
+					r = m;
+				else
+					l = m + 1;
 			}
 
+			result.ar[nInfect] += l;
 			result.ar[nInfect] -= result.ar[nInfect] > 5 ? 5 : result.ar[nInfect];
 		}
 
@@ -144,8 +151,6 @@ int main()
 	{
 		probs[n] = (1 - inv_p);
 
-		double check = .0;
-
 		for (int r = 0; r <= n; r++)
 		{
 			probsTable[n][r] = (double)
@@ -153,7 +158,7 @@ int main()
 				pow(.1, r) *
 				pow(.9, n - r);
 
-			check += probsTable[n][r];
+			probsTable[n][r] += r > 0. ? probsTable[n][r - 1] : 0.;
 		}
 
 		inv_p *= .9;
